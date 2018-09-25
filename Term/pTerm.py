@@ -35,11 +35,42 @@ class WindConsole:
         self.send_button = Button(send_frame, text="Send", command=self.print_console_send)
         self.send_button.grid(row=2, column=9, sticky=N+W, padx=2, pady=2)
 
+    def create_numpad_window(self):
+        numpad_frame = Frame(self.root)
+        numpad_frame.grid(row=3, column=0, columnspan=3, padx=5, pady=5)
+
+        btn_list = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', 'Esc']
+
+        # r, c used for row, column grid values
+        r = 3
+        c = 0
+        n = 0
+
+        list(range(0, 12))
+        btn = []
+        for label in btn_list:
+            # partial takes care of function and argument
+            cmd = lambda x = label: self.numpad_click(x)
+            # create the button
+            cur = Button(numpad_frame, text=label, width=3, height=3, command=cmd)
+            btn.append(cur)
+            # position the button
+            btn[-1].grid(row=r, column=c, padx=4, pady=4)
+            # increment button index
+            n += 1
+            # update row/column position
+            c += 1
+            if c == 3:
+                c = 0
+                r += 1
+
+    def numpad_click(self, label):
+        print(label)
+
     def init_gui(self):
         self.create_console_window()
         self.create_send_window()
-
-
+        self.create_numpad_window()
 
 if __name__ == '__main__':
     root = Tk()
