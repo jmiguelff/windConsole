@@ -8,23 +8,33 @@ PROGRAM_NAME = ' Wind Turbine Remote Console '
 
 
 class WindConsole:
+
+    client_socket = None
+    thread_close = 0
+
     def __init__(self, root):
         self.root = root
         root.title(PROGRAM_NAME)
         self.init_gui()
 
     def initialize_socket(self, address):
+        # Setup socket connection
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client_socket.settimeout(5)
+        self.client_socket.settimeout(120)
 
+        # Try to connect to server
         try:
             self.client_socket.connect(address)
         except socket.error as exc:
             self.connect_text.delete("1.0", END)
             self.connect_text.insert(INSERT, "Caught exception socket.error : %s" % exc)
 
+        # Present connected message
         self.connect_text.delete("1.0", END)
         self.connect_text.insert(INSERT, "Connected to " + address[0] + ":" + str(address[1]))
+
+        # Start listening thread
+        self.listen_for_incoming_messages_in_a_thread()
 
     def tcp_connect(self):
         connecttext = self.connect_text.get("1.0", END)
@@ -38,8 +48,31 @@ class WindConsole:
         # self.console_text_widget.insert(INSERT, "IP: " + ip + "\n")
         # self.console_text_widget.insert(INSERT, "PORT: " + port)
 
-        # Initialize scoket and connect to remote IP
+        # Initialize socket and connect to remote IP
         self.initialize_socket(remoteAddress)
+
+    def tcp_listen(self, so):
+        while True:
+            buf = so.recv(256)
+            if not buf:
+                break
+            self.console_text_widget.delete("1.0", END)
+            self.console_text_widget.insert(INSERT, buf.decode('utf-8'))
+            print("Received msg " + buf.decode('utf-8'))
+
+            if self.thread_close == 1:
+                break
+        so.close()
+        return
+
+    def listen_for_incoming_messages_in_a_thread(self):
+        t = threading.Thread(
+            target=self.tcp_listen, args=(self.client_socket,)
+        )
+        t.start()
+
+    def tcp_close(self):
+        self.thread_close = 1
 
     def create_console_window(self):
         console_frame = Frame(self.root)
@@ -50,9 +83,6 @@ class WindConsole:
         self.console_text_widget.grid(row=1, column=0, columnspan=10)
         self.console_text_widget.insert(INSERT, "Just a test string")
 
-    def ignore_enter(self, event):
-        return 'break'
-
     def create_connect_window(self):
         connect_frame = Frame(self.root)
         connect_frame.grid(row=2, column=0, columnspan=10, padx=5, pady=5)
@@ -60,11 +90,16 @@ class WindConsole:
         self.connect_text = Text(connect_frame, wrap=CHAR, height=1, width=68)
         self.connect_text.bind('<Return>', self.ignore_enter)
         self.connect_text.grid(row=2, column=0, columnspan=9)
+        self.connect_text.insert(INSERT, "127.0.0.1:5005")
 
         self.connect_button = Button(connect_frame, text="Connect", command=self.tcp_connect)
         self.connect_button.grid(row=2, column=9, sticky=N+W, padx=2, pady=2)
 
+        self.disconnect_button = Button(connect_frame, text="Disconnect", command=self.tcp_close)
+        self.disconnect_button.grid(row=3, column=9, sticky=N+W, padx=2, pady=2)
 
+    def ignore_enter(self, event):
+        return 'break'
 
     def create_numpad_window(self):
         numpad_frame = Frame(self.root)
@@ -97,7 +132,19 @@ class WindConsole:
                 r += 1
 
     def numpad_click(self, label):
-        print(label)
+        if label == "Esc":
+            data = bytes.fromhex('1b5b48')
+        elif label == "0":
+            data = bytes.fromhex('30')
+        else:
+            return
+
+        try:
+            self.client_socket.sendall(data)
+        except:
+            # recreate the socket and reconnect
+            self.connect_text.delete("1.0", END)
+            self.connect_text.insert(INSERT, "Not connected to any TCP server")
 
     def create_arrowpad_window(self):
         arrowpad_frame = Frame(self.root)
